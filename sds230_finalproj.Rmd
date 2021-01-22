@@ -1,10 +1,417 @@
 ---
-title: "sds230_finalproj"
-author: "James Cross"
-date: "1/21/2021"
-output: html_document
+title: "SDS230 Final Project"
+date: "05/01/2020"
+output:
+  word_document: default
+  html_document:
+    df_print: paged
 ---
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+
+```{r, include=F}
+library(car)
+library(leaps)
+library(lubridate)
+library(rvest)
+library(stringr)
+library(tools)
+library(corrplot)
+source("http://www.reuningscherer.net/s&ds230/Rfuncs/regJDRS.txt")
 ```
 
+## Introduction 
+
+For this project, we chose to use the Food Dataset in order to examine how one’s perception towards his or her diet and lifestyle choices (how healthy they eat or how much they exercise, for instance) influences other aspects of their life. There are numerous interesting variables in the dataset, including how students maintained their food habits during college, some of which are particularly relatable to our own college experience. We wanted to examine if there were any statistically significant relationships between such variables in order to determine what mindset or lifestyle habits are most beneficial for students to practice. Even though such correlations do not explicate a causal relationship, any observed associations are nevertheless interesting to examine. Other variables, like favorite comfort foods and reasons for indulging in such food, are familiar and relatable, and thus quantifying any implications associated with certain tastes yields valuable perspective on healthy college lifestyles.
+
+## Data and Variables
+
+The following data variables were included in our final dataset:
+
+- GPA: student's grade point average on a 4.0 scale
+- Gender: student's gender
+- grade_level: student's college grade level (i.e. Freshman)
+- calories_day: importance of consuming "calories per day" on a 1-4 scale, 4=very important
+- comfort_food: category of student's favorite comfort food(s)
+- comfort_food_reasons: primary reason that prompt student to eat comfort food
+- cook: how often the student cooks on 1-5 scale (1=everyday, 5=Never)
+- diet_current_coded: categorization of student's diet (Healthy/Balanced, Unhealthy/Cheap/Excessive/Random, Repetitive, Unclear)
+- eating_out: frequency of eating out on a scale from 1-5 (1 = Never, 5 = every day)
+- ethnic_food: how likely to eat ethnic food on 1-5 scale (5=very likely)
+- employment: student's employment status (1=full time, 2=part time, 3=no, 4=other)
+- exercise: how often student exercises in a regular week on 1-5 scale (1=everyday, 5=never)
+- fav_cuisine: student's favorite cuisine 
+- fav_food: where does student's favorite food come from (Home, Store, Both)
+- fruit_day: how likely student is to eat fruit in a given day on 1-5 scale (5=very likely)
+- healthy_feeling: 1-10 scale on agreement of statement "I feel very healthy!" (1=strongly agree, 10= strongly disagree)
+- income: student's bracketed income (1=less than 15000, 2=15001-30000, 3=30001-50000, 4=50001-70000, 5=70001-100000, 6=higher than 100000)
+- nutritional_check: how often student checks nutritional values on 1-5 scale (1=never, 5=always)
+- self_perception_weight: student's perception of own weight on 1-5 scale (1=slim, 5=overweight)
+- weight: student's weight in pounds
+- sports: student's involvement in sports? (Yes/No)
+
+```{r, include=F}
+food <- read.csv("http://reuningscherer.net/S&DS230/data/food.csv")
+
+dim(food)
+names(food)
+
+food <- food[, names(food) %in% c("GPA", "Gender", "calories_day", "comfort_food", "comfort_food_reasons", "cook", "diet_current_coded", "eating_out", "employment", "ethnic_food", "exercise", "fav_cuisine", "fav_food", "fruit_day", "healthy_feeling", "income", "nutritional_check", "self_perception_weight", "weight", "sports", "grade_level")]
+
+```
+
+## Data Cleaning
+
+For data cleaning, we mostly had to manually amend the free response categorical variables favorite food, favorite comfort food, and reasons for indulging in comfort food. The main things that had to be adjusted were with the same food items that were repeated multiple times with different names. For instance, there were some who entered “mac & cheese” whereas others would enter “macaroni and cheese.” Another example was with “sadness” and “depression” or with “stress” and “anxiety.” Another issue to adjust was that the question mentioned that individuals could enter 3 different options; however, to clean up the data, we only took the first food item that they entered as their answer. By doing this, we would then be able to use the variables properly as categorical variables for later analysis. For example, if someone entered “pasta, pizza, and chips,” we would clean up and just use “pasta” as their answer to the question. Similarly, in the variable for reasons for eating comfort food, many would enter more than one reason (for example, “boredom and sadness”), so we would again take the one they entered first and use it as their answer. Other than this, we also had to do the usual cleaning procedures. We had to create different groups and group similar categories together, such as creating “desserts” from grouping together "cake", "brownies", and "candy." For responses received from students like “none” or "NaN," we assigned them to NA’s. For responses that did not fit with other main categories, we assigned them to the category of "other" (such as chili in the favorite comfort food category). Some numeric data were read into our dataset in character or factor form—these were accounted for accordingly using the as.numeric() function. Some recoding (using the recode() function in the `car` package) was also done to more clearly indicate various categorical variables. Lastly, we also had to clean up basic things like spelling errors (for instance “stres” instead of “stress”). The code itself is in the R markdown. 
+
+
+```{r, include=F}
+#clean data fav_cuisine
+
+cuisine <- food$fav_cuisine
+cuisine <- as.character(cuisine)
+sort(unique(cuisine))
+cuisine <- tolower(cuisine)
+length(unique(cuisine))
+cuisine <- gsub(" food","",cuisine)
+length(unique(cuisine))
+cuisine <- trimws(cuisine)
+length(unique(cuisine))
+cuisine <- gsub(" or .*", "", cuisine)
+length(unique(cuisine))
+cuisine <- gsub(" and .*", "", cuisine)
+length(unique(cuisine))
+cuisine <- gsub(" cuisine.*", "", cuisine)
+length(unique(cuisine))
+
+searchvec1 <- c("american","italian","chinese","colombian", "indian")
+for (i in 1:length(searchvec1)){
+    cuisine <- gsub(paste(".*",searchvec1[i],".*",sep=""),searchvec1[i], cuisine)
+}
+searchvec2 <- c("sushi", "orange chicken", "nan", "mac")
+replacevec <- c("japanese", "chinese", "indian", "american")
+for (i in 1:length(searchvec2)){
+    cuisine <- gsub(paste(".*",searchvec2[i],".*",sep=""),replacevec[i], cuisine)
+}
+length(unique(cuisine))
+(unique(cuisine))
+
+cuisine <- gsub(paste("sub sandwhiches",sep=""),"american", cuisine) 
+
+delete <- c("all", "don't have one", "i do not like")
+for(i in 1:length(delete)){
+    cuisine <- gsub(delete[i],NA, cuisine)
+}
+cuisine <- gsub("chicken|barbecue|seafood", "non-vegetarian", cuisine) 
+cuisine <- gsub("lean|wraps", "Random", cuisine) 
+cuisine <- gsub("french|greek", "Other European", cuisine) 
+cuisine <- gsub("turkish|arabic|lebanese", "Middle Eastern", cuisine) 
+cuisine <- gsub("spanish|colombian|mexican", "hispanic", cuisine) 
+cuisine <- gsub("chinese|vietnamese|thai|japanese|korean", "asian", cuisine) 
+cuisine <- gsub("indian|nepali", "south asian", cuisine)
+cuisine <- gsub("jamaican|african", "Misc.", cuisine) 
+table <- data.frame(sort(table(cuisine), decreasing=T))
+table
+```
+
+```{r, include=F}
+#clean data comfort_food
+
+comfort <- tolower(as.character(food$comfort_food))
+comfort <- gsub(",.*", "", comfort)
+comfort <- gsub("\\n.*", "", comfort)
+comfort <- gsub(" /.*", "", comfort)
+comfort <- gsub("none|nan", NA, comfort)
+comfort <- gsub("pizza chocolate chips bagels ice capps ", "pizza", comfort)
+comfort <- gsub("mac n cheese chips and salsa ice cream ", "man n cheese", comfort)
+comfort <- gsub("fried chicken. mashed potatoes", "fried chicken", comfort)
+comfort <- gsub("pizza cookies steak " , "pizza", comfort)
+comfort <- gsub("carrots and ranch", "carrots", comfort)
+comfort <- gsub("wine mac and cheese", "wine", comfort)
+comfort <- gsub("mac n cheese. chips and salsa. ice cream. ", "mac n cheese", comfort)
+comfort <- gsub("wine. mac and cheese", "wine", comfort)
+comfort <- gsub("chips sweets popcorn", "chips", comfort)
+comfort <- gsub("fries|french fries|burgers|burger", "fast food", comfort) 
+comfort <- gsub("chips and dip|potato chips|doritos", "chips", comfort)
+comfort <- gsub("mac n cheese|mac and cheese|mac & cheese|mac in cheese", "macaroni and cheese", comfort)
+comfort <- gsub("carrots|watermelon|broccoli", "fruits and vegetables", comfort)
+comfort <- gsub("pasta dishes", "pasta", comfort)
+comfort <- gsub("tomato soup", "soup", comfort)
+comfort <- gsub("chicken fingers|fried chicken", "chicken", comfort)
+comfort <- gsub("chocolate|donuts|cookies|cake|ice cream|ice-cream|chocolates|frozen yogurt|dark chocolate|candy|macaroons", "desserts", comfort)
+comfort <- gsub("desserts bar", "desserts", comfort)
+comfort <- gsub("popcorn|little debbie snacks|chex-mix|peanut butter sandwich|peanut butter", "snacks", comfort)
+comfort <- gsub("grandma's chinese|chinese food", "chinese", comfort)
+comfort <- gsub("chinese", "chinese food", comfort)
+comfort <- gsub("noodle .*|rice|saltfish|mashed potatoes|chilli", "other", comfort)
+comfort <- gsub("wine|chicken|pasta|chinese food", "other", comfort)
+unique(comfort)
+table(comfort)
+```
+
+```{r, include=F}
+#clean data comfort_food_reasons
+
+comfreasons <- tolower(as.character(food$comfort_food_reasons))
+comfreasons <- trimws(comfreasons)
+comfreasons <- gsub(",.*", "", comfreasons)
+comfreasons <- gsub("stress and boredom", "stress", comfreasons)
+comfreasons <- gsub("boredom and stress", "boredom", comfreasons)
+comfreasons <- gsub(".* stressed .*", "stress", comfreasons)
+comfreasons <- gsub(".*stress.*", "stress", comfreasons)
+comfreasons <- gsub(".*bored.*", "bored", comfreasons)
+comfreasons <- gsub(".*sadness.*", "sadness", comfreasons)
+comfreasons <- gsub(".*sad.*", "sad", comfreasons)
+comfreasons <- gsub(".* tired.*", "tired", comfreasons)
+#comfreasons <- gsub("", NA , comfreasons)
+comfreasons <- gsub("we dont have comfort|none|nan|no reasons|just cause", NA, comfreasons)
+comfreasons <- gsub("stres", "stress", comfreasons)
+comfreasons <- gsub("stresss", "stress", comfreasons)
+comfreasons <- gsub("a long day|bad day|hormones|friends|anger|anxiousness|loneliness|survival|hunger", "other", comfreasons)
+comfreasons <- gsub("depression", "sad", comfreasons)
+comfreasons <- gsub( "they taste better than other food. they are a pickme up. they are easy to make|they are yummy", "taste", comfreasons)
+comfreasons <- gsub("laziness and hungover", "lazy", comfreasons)
+comfreasons <- gsub("bored", "boredom", comfreasons)
+comfreasons <- gsub("bordem", "boredom", comfreasons)
+unique(comfreasons)
+```
+
+```{r, include=F}
+food$comfort_food_reasons <- comfreasons
+food$comfort_food <- comfort
+food$fav_cuisine <- cuisine
+```
+
+```{r, include=F}
+# I added some additional data cleaning -james
+
+food$weight <- gsub("I'm not answering this|nan", NA, food$weight)
+food$weight <- gsub("Not sure, 240", 240, food$weight)
+
+# Its recoding time boys
+food$Gender <- recode(food$Gender, "1 = 'Female'; 2 = 'Male'")
+food$grade_level <- recode(food$grade_level, "1 = 'Freshman'; 2 = 'Sophomore'; 3 = 'Junior'; 4 = 'Senior'")
+food$diet_current_coded <- recode(food$diet_current_coded, "1 = 'Healthy/Balanced'; 2 = 'Unhealthy/Cheap'; 3 =  'Repetitive'; 4 = 'Unclear'")
+food$fav_food <- gsub("NaN", NA, recode(food$fav_food, "1 = 'Home'; 2 = 'Store'; 3 = 'Both'"))
+food$sports <- gsub("NaN", NA, recode(food$sports, "1 = 'Yes'; 2 = 'No'"))
+
+#for self_perception_weight, people who don't think in these terms (response of 6) were assigned to response of 3=just right
+food$self_perception_weight <- gsub("NaN", NA, food$self_perception_weight)
+food$self_perception_weight[food$self_perception_weight == 6] <- 3
+
+food$weight <- as.numeric(food$weight)
+food$GPA <- as.numeric(food$GPA)
+food$self_perception_weight <- as.numeric(food$self_perception_weight)
+
+```
+
+
+## Plots and Summary Information
+
+Throughout this analysis, we will look at a few different response variables. Our first response variable of interest will be the `healthy_feeling` variable, which measures how individuals agree with the statement "I feel very healthy!" on a 1-10 scale, where 1 is Strongly Agree and 10 is Strongly Disagree. This variable may thus serve as a proxy for measuring the perception of one's health.
+
+Let's  examine the distribution and summary statistics for the `healthy_feeling` variable to get a sense of our data:
+```{r}
+summary(food$healthy_feeling)
+
+hist(food$healthy_feeling, breaks = 10, xlim = c(1,11), col = "lightgreen", ylab = "Frequency", xlab = "Self-Diagnosis of Health", main = "Histogram of Self-Health Rating on \n1-10 scale (1 is Most Healthy)")
+qqPlot(food$healthy_feeling, pch = 19, main = "Normal Quantile Plot of \nHealthy Feeling", ylab = "Healthy Feeling")
+```
+We observe that this distribution is slightly right skewed, in which many responses reflect lower/healthier self-ratings. The NQ plot looks as such because healthy feeling is on a scale from 1-10; however, it does not seem as though anything needs to be done with the variable (in terms of transformations).
+
+Next, we can examine how `healthy_feeling` varies on the basis of different categorical variables. Specficially, we will examine a few boxplots of `healthy_feeling` as predicted by each of Gender, Grade level, and self-categorized Diet.
+
+```{r}
+boxplot(healthy_feeling ~ Gender, data = food, col = c("lightpink","lightblue2"), main = "Self-Health Rating by Gender", ylab = "Self-Health Rating")
+
+boxplot(food$healthy_feeling ~ factor(food$grade_level, levels=c("Freshman", "Sophomore", "Junior", "Senior")), main = "Self-Health Rating by Grade Level", xlab = "Grade Level", col = c("red","blue","green","yellow"), ylab = "Self-Health Rating", cex.axis = .8)
+
+```
+
+```{r}
+par(mar = c(5,12,2,2), cex = 0.7)
+boxplot(food$healthy_feeling ~ factor(food$diet_current_coded, levels=c( "Unclear", "Repetitive", "Unhealthy/Cheap","Healthy/Balanced")), main = "Self-Health Rating by Diet Type", xlab = "Self-Health Rating", col = c("gray", "orange", "pink", "lightgreen"), horizontal = T, las = 2, ylab = "")
+title(ylab="Diet Type", line=9)
+```
+
+
+In visualizing our data, it is somewhat difficult to discern if there are differences in self-health ratings between Males and Females, as well as among different Grade Levels. We observe that within self-identified diet types, however, there do indeed appear to be differences in self-health ratings. Interestingly, the median self-health rating among those who declare their diet as healthy is higher than the rating of those who self-proclaimed diet is Unhealthy/Cheap. In other words, people who identify their diet is unhealthy appear to generally feel healthier than those who consider their diets healthy. These relationships (and several others) will be explored further below.
+
+## Analysis  
+
+Next, we can quantify some of our observations and relationship hypotheses formally by using statistical methods.
+
+First, we perform a two-sample t-test on the difference of self health ratings between males and females.
+
+```{r}
+#"Basic Analysis" requirement as outlined on rubric
+#t-test and correlation
+(test1 <- t.test(food$healthy_feeling ~ food$Gender, conf.level = .95))
+```
+
+As we predicted above, since the p-value is .5178 (above an alpha value of .05), we fail to reject the null hypothesis that there is no difference in health rating based on gender.
+
+Next, we may be interested in whether healthy feeling ratings and exercise are correlated—we can find this out by doing a simple correlation test.
+
+```{r}
+(round(cor(food$healthy_feeling, food$exercise, use = "na.or.complete"), 2)) #The correlation
+cor.test(food$healthy_feeling, food$exercise, use = "na.or.complete") #simple correlation test
+```
+Since the correlation between health rating and exerscise ratings is around 0, there is likely no relation between the two variables. The amount that one exercises seems to not have an effect on how healthy one feels that their lifestyle is. To confirm this, the p-value of the test is .6893, so we fail to reject the null hypothesis that the correlation between the two variables is equal to zero.
+
+Let's visualize the relationship between these two variables.
+```{r}
+plot(jitter(food$healthy_feeling), jitter(food$exercise), pch = 19, col = "red", xlab = "Helathy Feeling Rating", ylab = "Exercise Rating")
+mtext(paste("Sample Correlation =", round(cor(food$healthy_feeling, food$exercise, use = "na.or.complete"), 3)), cex = .8, line = 0)
+mtext("Relationship between Healthy Feeling Rating and Exercise", line = 1)
+```
+
+From this scatterplot, we indeeed visually confirm there doesnt appear to be any association betwen the two variables, and that a correlation of 0 makes sense. 
+
+Returning to the prior computed t-test for the differences in mean healthy feeling rating between genders, we may wish to estimate a confidence interval for the true difference by constructing a bootstrapped confidence interval and comparing it to the calculated CI above.
+```{r, echo = T, results = 'hide'}
+#bootstrap confidence interval for t-test
+N <- 10000
+diffgender <- rep(NA, N)
+
+for (i in 1:N) {
+  ss <- sample(food$healthy_feeling[food$Gender == "Male"], sum(food$Gender == "Male"), replace = TRUE)
+  su <- sample(food$healthy_feeling[food$Gender == "Female"], sum(food$Gender == "Female"), replace = TRUE)
+  diffgender[i] <- mean(su) - mean(ss)
+}
+
+ci <- quantile(diffgender, c(.025, 0.975))
+round(ci,1)
+
+round(test1$conf.int, 1)
+```
+
+```{r}
+hist(diffgender, col = "blue", main = "Bootstrapped Sample Means Diff in Gender", xlab = "Sample Mean Differences of Healthy Feeling Ratings")
+
+abline(v=ci,lwd=3, col="red")
+abline(v=test1$conf.int,lwd=3, col="green", lty = 2)
+legend("topright", c("Original CI","Boot CI"), lwd=3, col = c("green","red"), lty = c(2,1))
+```
+
+The Boot CI is slightly more narrowed than the original CI, likely due to the fact that the Boot CI accounts for the fact that the original healthy_feeling data is slightly skewed to the right. We note that both intervals contain the value 0, which again demonstrates that we cannot conclude that there is a difference between healthy feeling ratings in Females vs. Males.
+
+We may also wish to conduct a similar technique for estimating the true correlation between healthy feeling ratings and exercise ratings. This can be accomplished by conducting a Permutation Test:
+```{r}
+#"Permutation Test" requirement - 
+
+permCor <- function(x, y, n_samp = 10000, plotit = T){
+   corResults <- rep(NA, n_samp)
+   for (i in 1:n_samp){
+      corResults[i] <- cor(x, sample(y), use = "na.or.complete")
+   }
+   
+   pval <- mean(abs(corResults) >= abs(cor(x, y, use = "na.or.complete")))
+   
+   if (plotit == T){
+      #Make histogram of permuted correlations
+      hist(corResults, col = "yellow", main = "", xlab = "Correlations", breaks = 50,
+           xlim = range(corResults,.95))
+      mtext("Permuted Sample Correlations", cex = 1.2, line = 1)
+      mtext(paste("Permuted P-value =",round(pval,5)), cex = 1, line = 0)
+      abline(v = cor(x, y, use = "na.or.complete"), col = "blue", lwd = 3)
+      text(cor(x,y, use = "na.or.complete")*2, 0, paste("Actual Correlation =", round(cor(x, y, use = "na.or.complete"), 2)), srt = 90, adj = 0, cex = .8)
+   }
+   if (plotit == F){
+      return(round(pval, 5))
+   }  
+}
+permCor(food$healthy_feeling, food$exercise)
+```
+
+The permuted P-value of .6921 (given that it is above an alpha value of .05) indicates that we fail to reject the null hypothesis that the correlation between exercise and healthy rating is equal to 0.
+
+
+Next, we are interested in exploring the relationships between many different variables, illustrated below:
+```{r fig.height = 5, fig.width = 5}
+#correlation plot(s), matrix test (m.test I think), ellipse graph thingy
+#note the options above are to make plots work properly in the corrplot package.
+
+cor1 <- cor(food[,c(1,3,6,10,11,14,16,18,19,21)], use="pairwise.complete.obs") #calculate pairwise correlations 
+
+#round cor1 to 2 decimal places. 
+cor1 <- round(cor1, 2)
+  
+#Gets the location(s) (row and column info) of the highest pairwise correlation less than 1. 
+maxloc <- which(cor1 == max(cor1[cor1<1]), arr.ind = TRUE)
+
+#Displays the two variables that correspond to the highest pairwise correlation less than 1. 
+names(food[,c(1,3,6,10,11,14,16,18,19,21)])[maxloc[1,]]
+
+#Create an object called sigcorr that has the results of cor.mtest for columns 10-23 of the crime data.  Use 95% CI.
+sigcorr <- cor.mtest(food[,c(1,3,6,10,11,14,16,18,19,21)], conf.level = .95)
+
+#Use corrplot.mixed to display confidence ellipses, pairwise correlation values, and put on 'X' over non-significant values.
+corrplot.mixed(cor1, lower.col = "black", upper = "ellipse", tl.col = "black", number.cex = .7, 
+               order = "hclust", tl.pos = "lt", tl.cex=.7, p.mat = sigcorr$p, sig.level = .05)
+  
+```
+
+
+We indeed observe there to be statistically signficant relationships between various variables, such as exercise and self perception of weight. 
+
+Let us now switch our response variable of interest from healthy_feeling ratings to self_perception_weight. This variable is an indicator for one's view of his or her own weight on a 1-5 scale, with 1=slim and 5=overweight. We are interested in creating a GLM using the technique of Multiple Regression. 
+
+The starting regressors we will employ are: Gender, GPA, calories_day, diet_current_coded, comfort_food, comfort_food_reasons, eating_out, healthy_feeling, fruit_day, fav_food, exercise, weight, sports, and self_perception_weight. We have checked the relationships among these variables above, and no obvious transformations for response nor predictor variables stand out. We will then perform backwards stepwise regression, by which variables are removed one by one on the basis of non-significance. Once a model is reached by which all predictors are signficant, we will then check our model assumptions by constructing a normal quantile plot of studentized residuals as well as a fits vs. studentized residuals plot (looking for HETEROSKEDASTICITY).
+
+The above plan is executed below:
+```{r}
+#GLM and backward stepwise regression
+food2 <- food[, c("Gender","GPA", "calories_day", "diet_current_coded", 
+                  "comfort_food", "comfort_food_reasons", "eating_out", "healthy_feeling", "fruit_day", "fav_food", "exercise","weight","sports", "self_perception_weight")]
+
+lm1 <- lm(self_perception_weight ~ . , data=food2)
+
+#After performing backward stepwise regression...
+lm2 <- lm(self_perception_weight ~ Gender + exercise + weight, data = food2)
+summary(lm2)
+
+#Does our model meet assumptions??
+par(cex.main = .6)
+myResPlots(lm2, label = "Prediction Model of Self-Perceived Weight")
+
+```
+
+After performing backwards stepwise regression, our final model used three regressors to predict Self-perceived weight (on a 1-5 scale): Gender, exercise, and weight. As seen in the summary output above, each predictor is statistically significant (p << 0.05). There is an R^squared value of .4547, indicating that about 45.47% of variability in the response variable is explained by knowing the predictors. We observe from the normal quantile plot that the studentized residuals of our data are approximately normal, and there is no obvious evidence of heteroskedasticity evident in our Fits vs. Studentized Residuals plot. The streaking that occurs in the latter is due to the quantized values of respones in our response variable (perceived weight on a 1-5 scale). Since our model assumptions are satisfied, no transformations were necessary to implement. 
+
+Interpretively, our model demonstrates that students who exercise less often (higher on 1-5 scale) and students who are heavier tend to have higher perceieved weight. Interestingly, the negative Beta weight for GenderMale implies that males tend to perceive themselves as lower-weight.
+
+
+Next, we might be interested in whether there exists significant differences in mean self-weight perception responses on the basis of one or more categorical variables. This can be statistically determined by using an analysis of variance, or ANOVA test. We will examine the differences in mean responses of self-perceived weights among comfort foods:
+```{r}
+#One way ANOVA
+par(mar = c(5,17,2,2), cex = .6, las = 2)
+boxplot(food$self_perception_weight[!is.na(food$self_perception_weight)] ~ food$comfort_food[!is.na(food$self_perception_weight)], col = "yellow", main = "Relationship between Comfort Food \nand Weight Self-Perception Rating", ylab = "", xlab = "Weight Self Perception Rating", horizontal = TRUE, cex.main = .8)
+title(ylab="Comfort Foods", line=10)
+```
+
+```{r, echo = T, results = 'hide'}
+sds <- tapply(food$self_perception_weight[!is.na(food$self_perception_weight)], 
+               food$comfort_food[!is.na(food$self_perception_weight)], sd)[-c(2,13)]
+round(max(sds)/min(sds), 1)
+
+mod1 <-  aov(food$self_perception_weight[!is.na(food$self_perception_weight)] ~ food$comfort_food[!is.na(food$self_perception_weight)])
+summary(mod1)
+TukeyHSD(mod1)
+```
+
+```{r}
+par(mar = c(5,17,2,2), cex = .6, las = 2, cex.axis = .6)
+plot(TukeyHSD(mod1), las = 1)
+```
+
+```{r}
+par(cex = .8)
+myResPlots2(mod1)
+```
+
+We observe that from our ANOVA summary results (full results in the R markdown), our F-statistic yielded a probability value greater than 0.05. Thus, we fail to reject the null hypothesis and can conclude that the mean response in self-perceieved weight is not statistically significantly different between student comfort food categorizations (F statistics value 1.067 and a p-value of .391). The NQ plot looks as such due to the 5 levels of weight self perception; however, the assumptions are met since it is quite linear and there is not noticable heteroskedacity in the Fits vs. Studentized Residuals plot.
+
+## Conclusions and Summary
+
+From our statistical analyses, we understand a great deal about lifestyle choices and how they influence the health of individuals. For example, from the Corrplot, there is a moderately strong positive correlation between exercise and one's own self perception of their own weight. There was also a statistically significant slightly strong positive correlation between GPA and how often one checks the nutritional labels, indicating that there may be an association between nutritional conscientiousness and academic performance. Our ANOVA model demonstrated that self-perceieved weight is not statistically significantly different between student comfort food categorizations. Nevertheless, our most important examination, from a lifestyle habit point of view, came from the GLM. The model demonstrates that students who exercise less often and students who are heavier tend to have a higher self-perceived weight (as these variables were significant predictors in the model). Thus, students in college looking to lead a healthier lifestyle should look to be more nutritionally conscientious and exercise more often due to their associations with healthy feeling and weight self-perception.
+
+If we had additional time and resources to further this project, the generation of data from additional college students nationwide would provide a better sample of the population. This would likely yield better or more significant results from analysis. For instance, with more observations we would have more students in each category to make them each more similarly distributed. 
