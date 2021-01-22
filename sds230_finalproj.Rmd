@@ -1,0 +1,10 @@
+---
+title: "sds230_finalproj"
+author: "James Cross"
+date: "1/21/2021"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
